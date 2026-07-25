@@ -9,6 +9,7 @@ import 'core/api/api_client.dart';
 import 'core/secure_storage/secure_storage_service.dart';
 import 'core/crypto/crypto_service.dart';
 import 'data/repositories/repositories.dart';
+import 'data/repositories/notes_repository.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/notes/notes_bloc.dart';
 import 'ui/pages/splash_page.dart';
@@ -34,6 +35,7 @@ void setupDependencies() {
     () => NotesRepository(
       apiClient: getIt<ApiClient>(),
       cryptoService: getIt<CryptoService>(),
+      secureStorage: getIt<SecureStorageService>(),
     ),
   );
 

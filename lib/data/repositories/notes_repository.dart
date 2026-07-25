@@ -4,17 +4,21 @@
 import 'package:dio/dio.dart';
 import '../../core/api/api_client.dart';
 import '../../core/crypto/crypto_service.dart';
+import '../../core/secure_storage/secure_storage_service.dart';
 import '../models/models.dart';
 
 class NotesRepository {
   final ApiClient _apiClient;
   final CryptoService _cryptoService;
+  final SecureStorageService _secureStorage;
 
   NotesRepository({
     required ApiClient apiClient,
     required CryptoService cryptoService,
+    required SecureStorageService secureStorage,
   })  : _apiClient = apiClient,
-        _cryptoService = cryptoService;
+        _cryptoService = cryptoService,
+        _secureStorage = secureStorage;
 
   /// Ambil semua notes (metadata only — tanpa ciphertext)
   Future<List<Note>> getNotes() async {
@@ -38,24 +42,33 @@ class NotesRepository {
   }
 
   /// Buat catatan baru — enkripsi dulu sebelum kirim
+  /// Title dan content dienkripsi dengan SALT dan IV yang SAMA
+  /// menggunakan master PIN dari secure storage
   Future<String> createNote({
     required String content,
-    required String pin,
     String? title,
   }) async {
+    final masterPin = await _secureStorage.getMasterPin();
+    if (masterPin == null) {
+      throw NotesException('Master PIN tidak ditemukan. Silakan login ulang.', code: 'NO_MASTER_PIN');
+    }
+
     try {
-      // Encrypt content
-      final encryptedContent = _cryptoService.encryptNote(content, pin);
+      final salt = _cryptoService.generateSalt();
+      final key = _cryptoService.deriveKey(masterPin, salt);
+      final iv = _cryptoService.generateIV();
+
+      final encryptedContent = _cryptoService.encryptWithIV(content, key, iv);
+
       String? encryptedTitle;
       if (title != null && title.isNotEmpty) {
-        final encTitle = _cryptoService.encryptNote(title, pin);
-        encryptedTitle = encTitle.ciphertext;
+        encryptedTitle = _cryptoService.encryptWithIV(title, key, iv).ciphertext;
       }
 
       final response = await _apiClient.post('/api/v1/notes', data: {
         'ciphertext': encryptedContent.ciphertext,
-        'iv': encryptedContent.iv,
-        'salt': encryptedContent.salt,
+        'iv': _cryptoService.ivBase64(iv),
+        'salt': _cryptoService.saltBase64(salt),
         'title_encrypted': encryptedTitle,
       });
 
@@ -69,21 +82,29 @@ class NotesRepository {
   Future<void> updateNote({
     required String noteId,
     required String content,
-    required String pin,
     String? title,
   }) async {
+    final masterPin = await _secureStorage.getMasterPin();
+    if (masterPin == null) {
+      throw NotesException('Master PIN tidak ditemukan. Silakan login ulang.', code: 'NO_MASTER_PIN');
+    }
+
     try {
-      final encryptedContent = _cryptoService.encryptNote(content, pin);
+      final salt = _cryptoService.generateSalt();
+      final key = _cryptoService.deriveKey(masterPin, salt);
+      final iv = _cryptoService.generateIV();
+
+      final encryptedContent = _cryptoService.encryptWithIV(content, key, iv);
+
       String? encryptedTitle;
       if (title != null && title.isNotEmpty) {
-        final encTitle = _cryptoService.encryptNote(title, pin);
-        encryptedTitle = encTitle.ciphertext;
+        encryptedTitle = _cryptoService.encryptWithIV(title, key, iv).ciphertext;
       }
 
       await _apiClient.put('/api/v1/notes/$noteId', data: {
         'ciphertext': encryptedContent.ciphertext,
-        'iv': encryptedContent.iv,
-        'salt': encryptedContent.salt,
+        'iv': _cryptoService.ivBase64(iv),
+        'salt': _cryptoService.saltBase64(salt),
         'title_encrypted': encryptedTitle,
       });
     } on DioException catch (e) {
@@ -100,14 +121,90 @@ class NotesRepository {
     }
   }
 
+  /// Helper: enkripsi note dengan PIN spesifik (untuk re-encryption saat ganti PIN)
+  Future<void> _encryptAndUpdateNote({
+    required String noteId,
+    required String content,
+    required String pin,
+    String? title,
+  }) async {
+    final salt = _cryptoService.generateSalt();
+    final key = _cryptoService.deriveKey(pin, salt);
+    final iv = _cryptoService.generateIV();
+
+    final encryptedContent = _cryptoService.encryptWithIV(content, key, iv);
+
+    String? encryptedTitle;
+    if (title != null && title.isNotEmpty) {
+      encryptedTitle = _cryptoService.encryptWithIV(title, key, iv).ciphertext;
+    }
+
+    await _apiClient.put('/api/v1/notes/$noteId', data: {
+      'ciphertext': encryptedContent.ciphertext,
+      'iv': _cryptoService.ivBase64(iv),
+      'salt': _cryptoService.saltBase64(salt),
+      'title_encrypted': encryptedTitle,
+    });
+  }
+
   /// Dekripsi note content (local only — PIN dari user)
   String decryptContent(Note note, String pin) {
-    return _cryptoService.decryptNote(
-      note.ciphertext,
-      note.iv,
-      note.salt,
-      pin,
-    );
+    final ciphertext = note.ciphertext;
+    if (ciphertext == null) {
+      print('[NotesRepo] DECRYPT ERROR: ciphertext is null for note ${note.id}');
+      throw NotesException('Ciphertext tidak tersedia.', code: 'DECRYPT_ERROR');
+    }
+    print('[NotesRepo] Decrypting note ${note.id} - ciphertext len=${ciphertext.length}, iv len=${note.iv.length}, salt len=${note.salt.length}');
+    try {
+      final result = _cryptoService.decryptNote(ciphertext, note.iv, note.salt, pin);
+      print('[NotesRepo] Decrypt SUCCESS for note ${note.id}');
+      return result;
+    } catch (e) {
+      print('[NotesRepo] Decrypt FAILED for note ${note.id}: $e');
+      rethrow;
+    }
+  }
+
+  /// Re-encrypt semua notes dengan PIN baru
+  /// Verifikasi old PIN dulu dengan decrypt satu note
+  /// Lalu re-encrypt semua notes dengan PIN baru
+  Future<void> reEncryptAllNotes({
+    required String oldPin,
+    required String newPin,
+  }) async {
+    final allNotes = await getNotes();
+    if (allNotes.isEmpty) return;
+
+    // Verifikasi old PIN dengan decrypt note pertama
+    final firstNote = await getNote(allNotes.first.id);
+    decryptContent(firstNote, oldPin);
+    if (firstNote.titleEncrypted != null) {
+      decryptContent(
+        firstNote.copyWith(ciphertext: firstNote.titleEncrypted),
+        oldPin,
+      );
+    }
+
+    // Re-encrypt semua notes dengan PIN baru
+    for (final noteSummary in allNotes) {
+      final note = await getNote(noteSummary.id);
+      final content = decryptContent(note, oldPin);
+
+      String? title;
+      if (note.titleEncrypted != null) {
+        title = decryptContent(
+          note.copyWith(ciphertext: note.titleEncrypted),
+          oldPin,
+        );
+      }
+
+      await _encryptAndUpdateNote(
+        noteId: note.id,
+        content: content,
+        pin: newPin,
+        title: title,
+      );
+    }
   }
 
   // ─── Error Mapping ─────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ class User {
 class Note {
   final String id;
   final String? titleEncrypted;
+  final String? ciphertext; // Only present in NoteDetail, null in NoteListItem
   final String iv;
   final String salt;
   final DateTime createdAt;
@@ -35,6 +36,7 @@ class Note {
   Note({
     required this.id,
     this.titleEncrypted,
+    this.ciphertext,
     required this.iv,
     required this.salt,
     required this.createdAt,
@@ -47,6 +49,7 @@ class Note {
     return Note(
       id: json['id'] as String,
       titleEncrypted: json['title_encrypted'] as String?,
+      ciphertext: json['ciphertext'] as String?,
       iv: json['iv'] as String,
       salt: json['salt'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -57,6 +60,7 @@ class Note {
   Note copyWith({
     String? id,
     String? titleEncrypted,
+    String? ciphertext,
     String? iv,
     String? salt,
     DateTime? createdAt,
@@ -67,6 +71,7 @@ class Note {
     return Note(
       id: id ?? this.id,
       titleEncrypted: titleEncrypted ?? this.titleEncrypted,
+      ciphertext: ciphertext ?? this.ciphertext,
       iv: iv ?? this.iv,
       salt: salt ?? this.salt,
       createdAt: createdAt ?? this.createdAt,

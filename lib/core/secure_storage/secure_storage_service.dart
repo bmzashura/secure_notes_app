@@ -7,6 +7,7 @@ import '../constants/app_constants.dart';
 
 class SecureStorageService {
   final FlutterSecureStorage _storage;
+  FlutterSecureStorage get storage => _storage;
 
   SecureStorageService({FlutterSecureStorage? storage})
       : _storage = storage ??
@@ -75,6 +76,19 @@ class SecureStorageService {
 
   Future<String?> getEncryptedMasterKey() async {
     return _storage.read(key: 'encrypted_master_key');
+  }
+
+  /// Simpan master PIN (untuk enkripsi semua notes)
+  Future<void> saveMasterPin(String pin) async {
+    await _storage.write(key: 'master_pin', value: pin);
+  }
+
+  Future<String?> getMasterPin() async {
+    return _storage.read(key: 'master_pin');
+  }
+
+  Future<void> clearMasterPin() async {
+    await _storage.delete(key: 'master_pin');
   }
 
   // ─── Clear All ────────────────────────────────────────────────────────────

@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/notes/notes_bloc.dart';
 import '../../core/theme/app_theme.dart';
@@ -20,38 +19,10 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _searchController = TextEditingController();
-  List<Note> _filteredNotes = [];
-  bool _isSearching = false;
-
   @override
   void initState() {
     super.initState();
     context.read<NotesBloc>().add(NotesLoadRequested());
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterNotes(String query, List<Note> allNotes) {
-    setState(() {
-      if (query.isEmpty) {
-        _isSearching = false;
-        _filteredNotes = allNotes;
-      } else {
-        _isSearching = true;
-        _filteredNotes = allNotes.where((note) {
-          // Search by decrypted title if available
-          return note.decryptedTitle
-                  ?.toLowerCase()
-                  .contains(query.toLowerCase()) ??
-              false;
-        }).toList();
-      }
-    });
   }
 
   @override
@@ -76,114 +47,46 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Cari catatan...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          final state = context.read<NotesBloc>().state;
-                          if (state is NotesLoaded) {
-                            _filterNotes('', state.notes);
-                          }
-                        },
-                      )
-                    : null,
+      body: BlocConsumer<NotesBloc, NotesState>(
+        listener: (context, state) {
+          if (state is NotesError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: AppTheme.danger,
               ),
-              onChanged: (v) {
-                final state = context.read<NotesBloc>().state;
-                if (state is NotesLoaded) {
-                  _filterNotes(v, state.notes);
-                }
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is NotesLoading) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            );
+          }
+          if (state is NotesLoaded) {
+            if (state.notes.isEmpty) {
+              return _buildEmptyState();
+            }
+            return RefreshIndicator(
+              onRefresh: () async {
+                context.read<NotesBloc>().add(NotesLoadRequested());
               },
-            ),
-          ),
-          // Notes count
-          BlocBuilder<NotesBloc, NotesState>(
-            builder: (context, state) {
-              if (state is NotesLoaded) {
-                final count = _isSearching
-                    ? _filteredNotes.length
-                    : state.notes.length;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Semua Catatan ($count)',
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          const SizedBox(height: 8),
-          // Notes list
-          Expanded(
-            child: BlocConsumer<NotesBloc, NotesState>(
-              listener: (context, state) {
-                if (state is NotesError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: AppTheme.danger,
-                    ),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: state.notes.length,
+                itemBuilder: (context, index) {
+                  return _NoteCard(
+                    note: state.notes[index],
+                    onTap: () => _openNote(state.notes[index]),
+                    onDelete: () => _deleteNote(state.notes[index]),
                   );
-                } else if (state is NotesLoaded) {
-                  _filterNotes(
-                    _searchController.text,
-                    state.notes,
-                  );
-                }
-              },
-              builder: (context, state) {
-                if (state is NotesLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary),
-                  );
-                }
-                if (state is NotesLoaded) {
-                  final notes = _isSearching ? _filteredNotes : state.notes;
-                  if (notes.isEmpty) {
-                    return _buildEmptyState();
-                  }
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      context.read<NotesBloc>().add(NotesLoadRequested());
-                    },
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: notes.length,
-                      itemBuilder: (context, index) {
-                        return _NoteCard(
-                          note: notes[index],
-                          onTap: () => _openNote(notes[index]),
-                          onDelete: () => _deleteNote(notes[index]),
-                        );
-                      },
-                    ),
-                  );
-                }
-                return _buildEmptyState();
-              },
-            ),
-          ),
-        ],
+                },
+              ),
+            );
+          }
+          return _buildEmptyState();
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openNote(null),
@@ -193,17 +96,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.note_add_outlined,
             size: 64,
             color: AppTheme.textMuted,
           ),
-          const SizedBox(height: 16),
-          const Text(
+          SizedBox(height: 16),
+          Text(
             'Belum ada catatan',
             style: TextStyle(
               fontSize: 18,
@@ -211,8 +114,8 @@ class _HomePageState extends State<HomePage> {
               color: AppTheme.textSecondary,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Tekan + untuk membuat catatan baru',
             style: TextStyle(color: AppTheme.textMuted),
           ),
@@ -230,6 +133,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _deleteNote(Note note) {
+    // Step 1: konfirmasi hapus
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -247,11 +151,106 @@ class _HomePageState extends State<HomePage> {
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
-              context.read<NotesBloc>().add(NoteDeleteRequested(note.id));
+              _showDeletePinDialog(note);
             },
-            child: const Text('Hapus'),
+            child: const Text('Lanjut'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showDeletePinDialog(Note note) {
+    final pinCtrl = TextEditingController();
+    bool obscure = true;
+    bool isLoading = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: AppTheme.surfaceElevated,
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: AppTheme.danger),
+              SizedBox(width: 8),
+              Text('Konfirmasi PIN'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan PIN master untuk menghapus catatan:',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: pinCtrl,
+                obscureText: obscure,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                enabled: !isLoading,
+                decoration: InputDecoration(
+                  labelText: 'PIN',
+                  counterText: '',
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    onPressed: () => setState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (pinCtrl.text.length < 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PIN minimal 4 digit'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+                      setState(() => isLoading = true);
+                      try {
+                        // Verify PIN by trying to decrypt the note
+                        final notesBloc = context.read<NotesBloc>();
+                        final fullNote = await notesBloc.notesRepository.getNote(note.id);
+                        notesBloc.notesRepository.decryptContent(fullNote, pinCtrl.text);
+                        if (ctx.mounted) {
+                          Navigator.of(ctx).pop();
+                          context.read<NotesBloc>().add(NoteDeleteRequested(note.id));
+                        }
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('PIN salah'),
+                              backgroundColor: AppTheme.danger,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (ctx.mounted) {
+                          setState(() => isLoading = false);
+                        }
+                      }
+                    },
+              child: const Text('Hapus'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -270,7 +269,9 @@ class _NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+    // Tampilkan title encrypted (jika ada) atau placeholder terenkripsi
+    // Jangan tampilkan decryptedTitle (bisa null) atau tanggal edit (leak metadata)
+    final displayTitle = note.titleEncrypted ?? '🔒 Catatan Terenkripsi';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -293,27 +294,14 @@ class _NoteCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      note.decryptedTitle ?? 'Catatan Tanpa Judul',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Diedit: ${dateFormat.format(note.updatedAt)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textMuted,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  displayTitle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(

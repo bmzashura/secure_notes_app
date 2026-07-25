@@ -49,6 +49,17 @@ class CryptoService {
     );
   }
 
+  /// Encrypt plaintext using AES-256-GCM with a provided IV
+  /// Used when title and content must share the same IV
+  EncryptedData encryptWithIV(String plaintext, Uint8List key, Uint8List iv) {
+    final encrypter = Encrypter(AES(Key(key), mode: AESMode.gcm));
+    final encrypted = encrypter.encrypt(plaintext, iv: IV(iv));
+    return EncryptedData(
+      ciphertext: encrypted.base64,
+      iv: ivBase64(iv),
+    );
+  }
+
   /// Decrypt ciphertext using AES-256-GCM
   String decrypt(String ciphertextBase64, String ivBase64, Uint8List key) {
     final iv = IV.fromBase64(ivBase64);

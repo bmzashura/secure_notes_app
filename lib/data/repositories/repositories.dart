@@ -37,6 +37,8 @@ class AuthRepository {
         refreshToken: tokens.refreshToken,
         userId: tokens.userId,
       );
+      // Simpan master PIN untuk enkripsi semua notes
+      await _secureStorage.saveMasterPin(pin);
       return tokens;
     } on DioException catch (e) {
       throw _mapError(e);
@@ -56,7 +58,9 @@ class AuthRepository {
           'password': password,
         },
       );
+      print('[AuthRepo] Login response: ${response.data}');
       final tokens = AuthTokens.fromJson(response.data);
+      print('[AuthRepo] Tokens parsed: userId=${tokens.userId}');
       await _secureStorage.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -64,11 +68,12 @@ class AuthRepository {
       );
       return tokens;
     } on DioException catch (e) {
+      print('[AuthRepo] Login DioException: ${e.response?.statusCode} ${e.response?.data}');
       throw _mapError(e);
     }
   }
 
-  /// Logout — hapus tokens dari secure storage
+  /// Logout — revoke refresh token on server, then clear local tokens
   Future<void> logout() async {
     try {
       final refreshToken = await _secureStorage.getRefreshToken();
@@ -78,11 +83,13 @@ class AuthRepository {
         });
       }
     } finally {
+      // Always clear local tokens regardless of API result
       await _secureStorage.clearTokens();
     }
   }
 
-  /// Cek apakah sudah login
+  /// Cek apakah sudah login (only checks token existence — validity
+  /// is verified by the API interceptor via 401 + refresh flow)
   Future<bool> isLoggedIn() async {
     final token = await _secureStorage.getAccessToken();
     return token != null;
@@ -98,6 +105,8 @@ class AuthRepository {
         'old_pin': oldPin,
         'new_pin': newPin,
       });
+      // Update master PIN yang tersimpan
+      await _secureStorage.saveMasterPin(newPin);
     } on DioException catch (e) {
       throw _mapError(e);
     }

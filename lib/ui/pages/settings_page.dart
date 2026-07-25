@@ -1,12 +1,16 @@
 // lib/ui/pages/settings_page.dart
 // Screen 08 — Security Settings
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/notes/notes_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/secure_storage/secure_storage_service.dart';
+import '../../data/repositories/repositories.dart';
+import '../../app.dart';
 import 'login_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -46,27 +50,8 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Account Section
-          _SectionHeader(title: 'AKUN'),
-          _SettingsTile(
-            icon: Icons.email_outlined,
-            title: 'user@email.com',
-            subtitle: 'Akun didaftarkan',
-            onTap: null,
-          ),
-          const SizedBox(height: 8),
-          _SettingsTile(
-            icon: Icons.lock_outline,
-            title: 'Ganti Password',
-            trailing: const Icon(
-              Icons.chevron_right,
-              color: AppTheme.textMuted,
-            ),
-            onTap: () => _showChangePasswordDialog(),
-          ),
-          const SizedBox(height: 24),
           // Security Section
-          _SectionHeader(title: 'KEAMANAN CATATAN'),
+          const _SectionHeader(title: 'KEAMANAN CATATAN'),
           _SettingsTile(
             icon: Icons.pin_outlined,
             title: 'Ganti PIN',
@@ -85,38 +70,10 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: Switch(
                 value: _biometricEnabled,
                 onChanged: (v) => setState(() => _biometricEnabled = v),
-                activeColor: AppTheme.primary,
+                activeThumbColor: AppTheme.primary,
               ),
               onTap: null,
             ),
-          const SizedBox(height: 8),
-          // Auto-lock
-          _SettingsTile(
-            icon: Icons.timer_outlined,
-            title: 'Auto-Lock',
-            trailing: DropdownButton<String>(
-              value: '30 detik',
-              underline: const SizedBox(),
-              dropdownColor: AppTheme.surfaceElevated,
-              items: const [
-                DropdownMenuItem(value: '15 detik', child: Text('15 detik')),
-                DropdownMenuItem(value: '30 detik', child: Text('30 detik')),
-                DropdownMenuItem(value: '1 menit', child: Text('1 menit')),
-                DropdownMenuItem(value: '5 menit', child: Text('5 menit')),
-              ],
-              onChanged: (_) {},
-            ),
-            onTap: null,
-          ),
-          const SizedBox(height: 24),
-          // Data Section
-          _SectionHeader(title: 'DATA'),
-          _SettingsTile(
-            icon: Icons.delete_forever,
-            title: 'Hapus Semua Data',
-            titleColor: AppTheme.danger,
-            onTap: () => _showDeleteAccountDialog(),
-          ),
           const SizedBox(height: 32),
           // Logout
           OutlinedButton.icon(
@@ -142,133 +99,170 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showChangePinDialog() {
     final oldPinController = TextEditingController();
     final newPinController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
-        title: const Text('Ganti PIN'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: oldPinController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              decoration: const InputDecoration(labelText: 'PIN Lama'),
-            ),
-            TextField(
-              controller: newPinController,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              decoration: const InputDecoration(labelText: 'PIN Baru'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('PIN berhasil diubah'),
-                  backgroundColor: AppTheme.success,
-                ),
-              );
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-  }
+    final confirmPinController = TextEditingController();
+    bool isLoading = false;
 
-  void _showChangePasswordDialog() {
-    final oldPwController = TextEditingController();
-    final newPwController = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
-        title: const Text('Ganti Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: oldPwController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password Lama'),
-            ),
-            TextField(
-              controller: newPwController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password Baru'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Password berhasil diubah'),
-                  backgroundColor: AppTheme.success,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.surfaceElevated,
+          title: const Text('Ganti PIN'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: oldPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                enabled: !isLoading,
+                decoration: const InputDecoration(labelText: 'PIN Lama'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: newPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                enabled: !isLoading,
+                decoration: const InputDecoration(labelText: 'PIN Baru (4-6 digit)'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmPinController,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                enabled: !isLoading,
+                decoration: const InputDecoration(labelText: 'Konfirmasi PIN Baru'),
+              ),
+              if (isLoading) ...[
+                const SizedBox(height: 16),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Mengubah PIN, jangan menutup app...',
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
                 ),
-              );
-            },
-            child: const Text('Simpan'),
+              ],
+            ],
           ),
-        ],
-      ),
-    );
-  }
+          actions: [
+            TextButton(
+              onPressed: isLoading
+                  ? null
+                  : () => Navigator.of(ctx).pop(),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final oldPin = oldPinController.text;
+                      final newPin = newPinController.text;
+                      final confirmPin = confirmPinController.text;
 
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
-        title: const Row(
-          children: [
-            Icon(Icons.warning, color: AppTheme.danger),
-            SizedBox(width: 8),
-            Text('Hapus Akun?'),
+                      if (oldPin.length < 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PIN lama minimal 4 digit'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+                      if (newPin.length < 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PIN baru minimal 4 digit'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+                      if (newPin != confirmPin) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PIN baru tidak cocok'),
+                            backgroundColor: AppTheme.warning,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isLoading = true);
+
+                      try {
+                        // 1. Call API to change PIN on server
+                        await getIt<AuthRepository>().changePin(
+                          oldPin: oldPin,
+                          newPin: newPin,
+                        );
+
+                        // 2. Re-encrypt all notes with new PIN via BLoC
+                        final notesBloc = getIt<NotesBloc>();
+
+                        // Listen for terminal states BEFORE adding event
+                        final completer = Completer<NotesState>();
+                        late final StreamSubscription sub;
+                        sub = notesBloc.stream.listen((state) {
+                          if (state is NotesLoaded || state is NotesError) {
+                            completer.complete(state);
+                            sub.cancel();
+                          }
+                        });
+
+                        // Add event to trigger re-encryption
+                        notesBloc.add(ReEncryptAllNotesRequested(
+                          oldPin: oldPin,
+                          newPin: newPin,
+                        ));
+
+                        // Wait for terminal state
+                        final state = await completer.future;
+
+                        if (state is NotesError) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(state.message),
+                                backgroundColor: AppTheme.danger,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        if (ctx.mounted) {
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('PIN berhasil diubah'),
+                              backgroundColor: AppTheme.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Gagal mengubah PIN: $e'),
+                              backgroundColor: AppTheme.danger,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (ctx.mounted) {
+                          setDialogState(() => isLoading = false);
+                        }
+                      }
+                    },
+              child: const Text('Simpan'),
+            ),
           ],
         ),
-        content: const Text(
-          'Semua catatan dan data akan dihapus permanen. '
-          'Operasi ini TIDAK DAPAT dibatalkan.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.danger,
-            ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AuthBloc>().add(AuthDeleteAccountRequested());
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                (route) => false,
-              );
-            },
-            child: const Text('Hapus Permanen'),
-          ),
-        ],
       ),
     );
   }
@@ -298,7 +292,6 @@ class _SectionHeader extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
   final Color? titleColor;
@@ -306,7 +299,6 @@ class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
     required this.title,
-    this.subtitle,
     this.trailing,
     this.onTap,
     this.titleColor,
@@ -325,15 +317,6 @@ class _SettingsTile extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        subtitle: subtitle != null
-            ? Text(
-                subtitle!,
-                style: const TextStyle(
-                  color: AppTheme.textMuted,
-                  fontSize: 12,
-                ),
-              )
-            : null,
         trailing: trailing,
         onTap: onTap,
       ),

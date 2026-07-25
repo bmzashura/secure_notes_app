@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/theme/app_theme.dart';
+import 'home_page.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -47,6 +48,10 @@ class _LoginPageState extends State<LoginPage> {
                 content: Text(state.message),
                 backgroundColor: AppTheme.danger,
               ),
+            );
+          } else if (state is AuthAuthenticated) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomePage()),
             );
           }
         },

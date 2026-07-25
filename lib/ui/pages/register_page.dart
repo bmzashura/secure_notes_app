@@ -153,8 +153,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: const [
+                      const Row(
+                        children: [
                           Icon(Icons.pin, color: AppTheme.accentCyan, size: 20),
                           SizedBox(width: 8),
                           Text(

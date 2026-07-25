@@ -1,6 +1,7 @@
 // lib/core/api/api_client.dart
 // Dio HTTP client dengan JWT interceptor
 
+import 'dart:async';
 import 'package:dio/dio.dart';
 import '../constants/app_constants.dart';
 import '../secure_storage/secure_storage_service.dart';
@@ -12,7 +13,7 @@ class ApiClient {
   ApiClient({required SecureStorageService secureStorage})
       : _secureStorage = secureStorage,
         _dio = Dio(_buildBaseOptions()) {
-    _dio.interceptors.add(_AuthInterceptor(secureStorage));
+    _dio.interceptors.add(_AuthInterceptor(secureStorage, _dio));
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: false, // Jangan log response body — bisa ada data sensitif
@@ -65,26 +66,29 @@ class ApiClient {
 
 class _AuthInterceptor extends Interceptor {
   final SecureStorageService _secureStorage;
+  final Dio _dio;
 
-  _AuthInterceptor(this._secureStorage);
+  // Mutex to prevent concurrent token refresh attempts
+  bool _isRefreshing = false;
+  final List<Completer<bool>> _pendingRequests = [];
+
+  _AuthInterceptor(this._secureStorage, this._dio);
 
   @override
   void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // Skip auth header untuk endpoints publik
-    final publicPaths = [
+    // Skip auth header untuk endpoints publik — use exact match
+    const publicPaths = {
       '/api/v1/auth/register',
       '/api/v1/auth/login',
       '/api/v1/auth/refresh',
       '/health',
       '/docs',
-    ];
+    };
 
-    final isPublic = publicPaths.any(
-      (path) => options.path.endsWith(path),
-    );
+    final isPublic = publicPaths.contains(options.path);
 
     if (!isPublic) {
       final token = await _secureStorage.getAccessToken();
@@ -98,42 +102,69 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    // Jika 401 → coba refresh token
     if (err.response?.statusCode == 401) {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
-        // Retry original request
+        // Retry original request using the same Dio instance (preserves interceptors)
         final opts = err.requestOptions;
         final token = await _secureStorage.getAccessToken();
         opts.headers['Authorization'] = 'Bearer $token';
         try {
-          final response = await Dio().fetch(opts);
+          final response = await _dio.fetch(opts);
           return handler.resolve(response);
         } catch (e) {
           return handler.next(err);
         }
       }
+      // Refresh failed — notify queued requests
+      _notifyRefreshFailed();
     }
     handler.next(err);
   }
 
   Future<bool> _tryRefreshToken() async {
+    if (_isRefreshing) {
+      // Wait for the ongoing refresh to complete
+      final completer = Completer<bool>();
+      _pendingRequests.add(completer);
+      return completer.future;
+    }
+
+    _isRefreshing = true;
     try {
       final refreshToken = await _secureStorage.getRefreshToken();
       if (refreshToken == null) return false;
 
-      final dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
-      final response = await dio.post('/api/v1/auth/refresh', data: {
+      final response = await _dio.post('/api/v1/auth/refresh', data: {
         'refresh_token': refreshToken,
       });
 
       if (response.statusCode == 200) {
         final newAccessToken = response.data['access_token'];
-        // Simpan via SecureStorageService public method
         await _secureStorage.saveAccessToken(newAccessToken);
+        _resolvePendingRequests();
         return true;
       }
-    } catch (_) {}
+    } catch (e) {
+      // Refresh failed — clear tokens so app re-auths
+      await _secureStorage.clearTokens();
+    } finally {
+      _isRefreshing = false;
+    }
     return false;
+  }
+
+  void _resolvePendingRequests() {
+    for (final completer in _pendingRequests) {
+      completer.complete(true);
+    }
+    _pendingRequests.clear();
+  }
+
+  void _notifyRefreshFailed() {
+    for (final completer in _pendingRequests) {
+      completer.complete(false);
+    }
+    _pendingRequests.clear();
   }
 }

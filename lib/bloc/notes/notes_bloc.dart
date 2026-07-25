@@ -17,30 +17,26 @@ class NotesLoadRequested extends NotesEvent {}
 
 class NoteCreateRequested extends NotesEvent {
   final String content;
-  final String pin;
   final String? title;
   NoteCreateRequested({
     required this.content,
-    required this.pin,
     this.title,
   });
   @override
-  List<Object?> get props => [content, pin, title];
+  List<Object?> get props => [content, title];
 }
 
 class NoteUpdateRequested extends NotesEvent {
   final String noteId;
   final String content;
-  final String pin;
   final String? title;
   NoteUpdateRequested({
     required this.noteId,
     required this.content,
-    required this.pin,
     this.title,
   });
   @override
-  List<Object?> get props => [noteId, content, pin, title];
+  List<Object?> get props => [noteId, content, title];
 }
 
 class NoteDeleteRequested extends NotesEvent {
@@ -56,6 +52,14 @@ class NoteDecryptRequested extends NotesEvent {
   NoteDecryptRequested({required this.note, required this.pin});
   @override
   List<Object?> get props => [note.id, pin];
+}
+
+class ReEncryptAllNotesRequested extends NotesEvent {
+  final String oldPin;
+  final String newPin;
+  ReEncryptAllNotesRequested({required this.oldPin, required this.newPin});
+  @override
+  List<Object?> get props => [oldPin, newPin];
 }
 
 // ─── States ──────────────────────────────────────────────────────────────────
@@ -103,6 +107,13 @@ class NoteDecrypted extends NotesState {
   List<Object?> get props => [note.id, decryptedContent];
 }
 
+class ReEncryptInProgress extends NotesState {
+  final String message;
+  ReEncryptInProgress([this.message = 'Mengubah PIN...']);
+  @override
+  List<Object?> get props => [message];
+}
+
 // ─── BLoC ───────────────────────────────────────────────────────────────────
 
 class NotesBloc extends Bloc<NotesEvent, NotesState> {
@@ -116,7 +127,10 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     on<NoteUpdateRequested>(_onUpdateRequested);
     on<NoteDeleteRequested>(_onDeleteRequested);
     on<NoteDecryptRequested>(_onDecryptRequested);
+    on<ReEncryptAllNotesRequested>(_onReEncryptRequested);
   }
+
+  NotesRepository get notesRepository => _notesRepository;
 
   Future<void> _onLoadRequested(
     NotesLoadRequested event,
@@ -141,7 +155,6 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
     try {
       await _notesRepository.createNote(
         content: event.content,
-        pin: event.pin,
         title: event.title,
       );
       emit(NoteOperationSuccess('Catatan berhasil dibuat.'));
@@ -164,7 +177,6 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
       await _notesRepository.updateNote(
         noteId: event.noteId,
         content: event.content,
-        pin: event.pin,
         title: event.title,
       );
       emit(NoteOperationSuccess('Catatan berhasil diperbarui.'));
@@ -219,6 +231,26 @@ class NotesBloc extends Bloc<NotesEvent, NotesState> {
       ));
     } catch (e) {
       emit(NotesError('Gagal mendekripsi. PIN mungkin salah.'));
+    }
+  }
+
+  Future<void> _onReEncryptRequested(
+    ReEncryptAllNotesRequested event,
+    Emitter<NotesState> emit,
+  ) async {
+    emit(ReEncryptInProgress('Mengubah PIN...'));
+    try {
+      await _notesRepository.reEncryptAllNotes(
+        oldPin: event.oldPin,
+        newPin: event.newPin,
+      );
+      emit(NoteOperationSuccess('PIN berhasil diubah.'));
+      final notes = await _notesRepository.getNotes();
+      emit(NotesLoaded(notes));
+    } on NotesException catch (e) {
+      emit(NotesError(e.message));
+    } catch (e) {
+      emit(NotesError('Gagal mengubah PIN. Pastikan PIN lama benar.'));
     }
   }
 }
