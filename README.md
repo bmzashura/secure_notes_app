@@ -128,7 +128,17 @@ Base URL: `https://api.bemis.dpdns.org`
 | Secure Storage | flutter_secure_storage (Android Keystore / iOS Keychain) |
 | Enkripsi | AES-256-GCM via `encrypt` + PBKDF2-SHA256 via `pointycastle` |
 | Dependency Injection | get_it |
-| Input PIN | pinput |
+| Input PIN | Custom Numpad (no system keyboard) |
+
+---
+
+## Fitur Keamanan
+
+| Fitur | Status | Keterangan |
+|-------|--------|------------|
+| Auto-lock | ✅ 10 detik | Lock otomatis saat app di background >10 detik |
+| Custom Numpad | ✅ | Tidak pakai keyboard sistem |
+| Rate Limiting | ✅ | 3 percobaan PIN salah → lockout |
 
 ---
 

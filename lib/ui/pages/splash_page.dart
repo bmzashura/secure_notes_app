@@ -78,8 +78,8 @@ class _SplashPageState extends State<SplashPage>
       child: Scaffold(
         backgroundColor: AppTheme.surface,
         body: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
+          child: ListenableBuilder(
+            listenable: _controller,
             builder: (context, child) {
               return FadeTransition(
                 opacity: _fadeAnimation,
