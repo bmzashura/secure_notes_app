@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import 'register_page.dart';
-import 'pin_entry_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

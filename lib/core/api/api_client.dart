@@ -129,10 +129,8 @@ class _AuthInterceptor extends Interceptor {
 
       if (response.statusCode == 200) {
         final newAccessToken = response.data['access_token'];
-        await _secureStorage._storage.write(
-          key: AppConstants.accessTokenKey,
-          value: newAccessToken,
-        );
+        // Simpan via SecureStorageService public method
+        await _secureStorage.saveAccessToken(newAccessToken);
         return true;
       }
     } catch (_) {}

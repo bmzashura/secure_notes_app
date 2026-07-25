@@ -21,6 +21,10 @@ class SecureStorageService {
 
   // ─── Token Management ──────────────────────────────────────────────────────
 
+  Future<void> saveAccessToken(String token) async {
+    await _storage.write(key: AppConstants.accessTokenKey, value: token);
+  }
+
   Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
