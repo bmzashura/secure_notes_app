@@ -8,7 +8,7 @@ Aplikasi mobile catatan terenkripsi end-to-end dengan arsitektur zero-knowledge.
 
 | Field | Value |
 |-------|-------|
-| Email | `b@z.com` |
+| Email | `ty@z.com` |
 | Password | `12345678` |
 | PIN | `654321` |
 

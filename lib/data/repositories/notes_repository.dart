@@ -151,18 +151,9 @@ class NotesRepository {
   String decryptContent(Note note, String pin) {
     final ciphertext = note.ciphertext;
     if (ciphertext == null) {
-      print('[NotesRepo] DECRYPT ERROR: ciphertext is null for note ${note.id}');
       throw NotesException('Ciphertext tidak tersedia.', code: 'DECRYPT_ERROR');
     }
-    print('[NotesRepo] Decrypting note ${note.id} - ciphertext len=${ciphertext.length}, iv len=${note.iv.length}, salt len=${note.salt.length}');
-    try {
-      final result = _cryptoService.decryptNote(ciphertext, note.iv, note.salt, pin);
-      print('[NotesRepo] Decrypt SUCCESS for note ${note.id}');
-      return result;
-    } catch (e) {
-      print('[NotesRepo] Decrypt FAILED for note ${note.id}: $e');
-      rethrow;
-    }
+    return _cryptoService.decryptNote(ciphertext, note.iv, note.salt, pin);
   }
 
   /// Re-encrypt semua notes dengan PIN baru

@@ -116,19 +116,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   Future<void> _decryptAndOpen(String pin) async {
     setState(() => _isLoading = true);
-    print('[NoteEditor] _decryptAndOpen called with PIN length=${pin.length}');
     try {
       final notesBloc = context.read<NotesBloc>();
-      print('[NoteEditor] Fetching note ${widget.note!.id} from API...');
       final note = await notesBloc.notesRepository.getNote(widget.note!.id);
-      print('[NoteEditor] Note fetched - titleEncrypted=${note.titleEncrypted != null}, ciphertext=${note.ciphertext != null}, iv=${note.iv.length}');
-
-      print('[NoteEditor] Decrypting content with PIN...');
       final decryptedContent = notesBloc.notesRepository.decryptContent(note, pin);
 
       String? decryptedTitle;
       if (note.titleEncrypted != null) {
-        print('[NoteEditor] Decrypting title...');
         decryptedTitle = notesBloc.notesRepository.decryptContent(
           note.copyWith(ciphertext: note.titleEncrypted),
           pin,
@@ -143,7 +137,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         });
       }
     } catch (e) {
-      print('[NoteEditor] _decryptAndOpen FAILED: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +245,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                         final masterPin = await getIt<SecureStorageService>().getMasterPin();
                         if (pinCtrl.text != masterPin) {
                           if (ctx.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(ctx).showSnackBar(
                               const SnackBar(
                                 content: Text('PIN salah'),
                                 backgroundColor: AppTheme.danger,

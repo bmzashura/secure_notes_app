@@ -58,9 +58,7 @@ class AuthRepository {
           'password': password,
         },
       );
-      print('[AuthRepo] Login response: ${response.data}');
       final tokens = AuthTokens.fromJson(response.data);
-      print('[AuthRepo] Tokens parsed: userId=${tokens.userId}');
       await _secureStorage.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -68,7 +66,6 @@ class AuthRepository {
       );
       return tokens;
     } on DioException catch (e) {
-      print('[AuthRepo] Login DioException: ${e.response?.statusCode} ${e.response?.data}');
       throw _mapError(e);
     }
   }

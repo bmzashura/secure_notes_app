@@ -8,7 +8,6 @@ import 'package:local_auth/local_auth.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/notes/notes_bloc.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/secure_storage/secure_storage_service.dart';
 import '../../data/repositories/repositories.dart';
 import '../../app.dart';
 import 'login_page.dart';
@@ -109,45 +108,47 @@ class _SettingsPageState extends State<SettingsPage> {
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppTheme.surfaceElevated,
           title: const Text('Ganti PIN'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: oldPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                enabled: !isLoading,
-                decoration: const InputDecoration(labelText: 'PIN Lama'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: newPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                enabled: !isLoading,
-                decoration: const InputDecoration(labelText: 'PIN Baru (4-6 digit)'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: confirmPinController,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                enabled: !isLoading,
-                decoration: const InputDecoration(labelText: 'Konfirmasi PIN Baru'),
-              ),
-              if (isLoading) ...[
-                const SizedBox(height: 16),
-                const LinearProgressIndicator(),
-                const SizedBox(height: 8),
-                const Text(
-                  'Mengubah PIN, jangan menutup app...',
-                  style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oldPinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  enabled: !isLoading,
+                  decoration: const InputDecoration(labelText: 'PIN Lama'),
                 ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: newPinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  enabled: !isLoading,
+                  decoration: const InputDecoration(labelText: 'PIN Baru (4-6 digit)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmPinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  enabled: !isLoading,
+                  decoration: const InputDecoration(labelText: 'Konfirmasi PIN Baru'),
+                ),
+                if (isLoading) ...[
+                  const SizedBox(height: 16),
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Mengubah PIN, jangan menutup app...',
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -225,7 +226,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                         if (state is NotesError) {
                           if (ctx.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(ctx).showSnackBar(
                               SnackBar(
                                 content: Text(state.message),
                                 backgroundColor: AppTheme.danger,
@@ -237,7 +238,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                         if (ctx.mounted) {
                           Navigator.of(ctx).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(
                             const SnackBar(
                               content: Text('PIN berhasil diubah'),
                               backgroundColor: AppTheme.success,
@@ -246,7 +247,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(
                             SnackBar(
                               content: Text('Gagal mengubah PIN: $e'),
                               backgroundColor: AppTheme.danger,
@@ -294,14 +295,12 @@ class _SettingsTile extends StatelessWidget {
   final String title;
   final Widget? trailing;
   final VoidCallback? onTap;
-  final Color? titleColor;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
     this.trailing,
     this.onTap,
-    this.titleColor,
   });
 
   @override
@@ -309,11 +308,11 @@ class _SettingsTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
-        leading: Icon(icon, color: titleColor ?? AppTheme.primary),
+        leading: Icon(icon, color: AppTheme.primary),
         title: Text(
           title,
-          style: TextStyle(
-            color: titleColor ?? AppTheme.textPrimary,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
             fontWeight: FontWeight.w500,
           ),
         ),

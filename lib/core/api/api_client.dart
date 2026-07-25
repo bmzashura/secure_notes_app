@@ -3,21 +3,20 @@
 
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../constants/app_constants.dart';
 import '../secure_storage/secure_storage_service.dart';
 
 class ApiClient {
   final Dio _dio;
-  final SecureStorageService _secureStorage;
 
   ApiClient({required SecureStorageService secureStorage})
-      : _secureStorage = secureStorage,
-        _dio = Dio(_buildBaseOptions()) {
+      : _dio = Dio(_buildBaseOptions()) {
     _dio.interceptors.add(_AuthInterceptor(secureStorage, _dio));
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
-      responseBody: false, // Jangan log response body — bisa ada data sensitif
-      logPrint: (o) => print('[API] $o'),
+      responseBody: false,
+      logPrint: (o) => debugPrint('[API] $o'),
     ));
   }
 

@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import 'login_page.dart';
-import 'home_page.dart';
+import 'pin_entry_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -65,8 +65,9 @@ class _SplashPageState extends State<SplashPage>
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
+          // Authenticated user → go to PIN entry first
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomePage()),
+            MaterialPageRoute(builder: (_) => const PinEntryPage()),
           );
         } else if (state is AuthUnauthenticated) {
           Navigator.of(context).pushReplacement(
@@ -104,7 +105,7 @@ class _SplashPageState extends State<SplashPage>
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primary.withOpacity(0.4),
+                        color: AppTheme.primary.withValues(alpha: 0.4),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),

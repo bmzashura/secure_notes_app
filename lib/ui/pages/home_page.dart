@@ -3,13 +3,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/notes/notes_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/models.dart';
 import 'note_editor_page.dart';
 import 'settings_page.dart';
-import 'login_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -230,11 +228,11 @@ class _HomePageState extends State<HomePage> {
                         notesBloc.notesRepository.decryptContent(fullNote, pinCtrl.text);
                         if (ctx.mounted) {
                           Navigator.of(ctx).pop();
-                          context.read<NotesBloc>().add(NoteDeleteRequested(note.id));
+                          notesBloc.add(NoteDeleteRequested(note.id));
                         }
                       } catch (e) {
                         if (ctx.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(ctx).showSnackBar(
                             const SnackBar(
                               content: Text('PIN salah'),
                               backgroundColor: AppTheme.danger,
