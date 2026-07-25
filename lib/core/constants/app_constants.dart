@@ -4,7 +4,7 @@ class AppConstants {
   AppConstants._();
 
   // API
-  static const String baseUrl = 'http://10.0.2.2:8000'; // Android emulator localhost
+  static const String baseUrl = 'https://api.bemis.dpdns.org'; // Production
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);
 
