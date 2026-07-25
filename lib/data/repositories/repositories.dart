@@ -95,6 +95,21 @@ class AuthRepository {
     return token != null;
   }
 
+  /// Verifikasi PIN lokal (untuk lockout screen)
+  /// PIN verify via API — return true if valid
+  Future<bool> verifyPin(String pin) async {
+    try {
+      // PIN verify endpoint — endpoint ini akan menambah attempt count
+      await _apiClient.post('/api/v1/auth/verify-pin', data: {'pin': pin});
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw AuthException('PIN salah', code: 'INVALID_PIN');
+      }
+      throw _mapError(e);
+    }
+  }
+
   /// Ganti PIN
   Future<void> changePin({
     required String oldPin,
